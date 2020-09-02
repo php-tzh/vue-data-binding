@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <div id="app">
+        <input type="text" v-model="name" />
+        <h1>{{name}}</h1>
+        <h2 v-html="name"></h2>
+        <button type="button" @click="change">修改name</button>
+    </div>
+    <script>
+        class Vue{
+            constructor(options){
+                this.$options = options
+                this.$el = document.querySelector(this.$options.el)
+                this.$watchEvent = {}//存放每个data属性的事件对象 如 name:[event1,event2,event3]
+                
+                this.proxyData()
+               
+                this.observe()
+                this.compile(this.$el)
+                
+                
+                //data属性值被修改时触发事件 将绑定了该属性的节点一并修改
+               
+            }
+            //编译html
+            compile(cNode){
+                //遍历el下的所有子节点 
+                cNode.childNodes.forEach((item,index)=>{
+                    // console.log(item);
+                    //判断当前的节点类型 （nodeType==1=节点）和文本类型(nodeType==3==文本)
+                    if(item.nodeType==1){
+                        //v-html
+                        if(item.hasAttribute('v-html')){
+                            //获取v-html属性绑定的data属性
+                            let vmKey = item.getAttribute('v-html').trim()
+                            if(this.hasOwnProperty(vmKey)){
+                                    //设置属性值
+                                // console.log(this[vmKey]);
+                                item.innerHTML = this[vmKey]
+                                //生成事件对象
+                                let watcher = new Watch(this,vmKey,item,'innerHTML')
+                                //将事件对象添加到 watchEvent、
+                                if(this.$watchEvent[vmKey]){
+                                    this.$watchEvent[vmKey].push(watcher)
+                                }else{
+                                    this.$watchEvent[vmKey] = []
+                                    this.$watchEvent[vmKey].push(watcher)
+                                }
+                            }
+                            
+                       
+                        }
+                        //v-model
+                        if(item.hasAttribute('v-model')){
+                            //数据双向绑定
+                            let vmKey = item.getAttribute('v-model').trim()
+                            if(this.hasOwnProperty(vmKey)){
+                                item.value = this[vmKey]
+                                 //生成事件对象
+                                 let watcher = new Watch(this,vmKey,item,'value')
+                                //将事件对象添加到 watchEvent、
+                                if(this.$watchEvent[vmKey]){
+                                    this.$watchEvent[vmKey].push(watcher)
+                                }else{
+                                    this.$watchEvent[vmKey] = []
+                                    this.$watchEvent[vmKey].push(watcher)
+                                }
+                                item.addEventListener('input',()=>{
+                                    this[vmKey] = item.value
+                                })
+                            }
+                        }
+                        //@click
+                        if(item.hasAttribute('@click')){
+                            //获取method
+                            let method = item.getAttribute('@click').trim()
+                            item.addEventListener('click',(e)=>{
+                                this.eFn = this.$options.methods[method].bind(this)
+                                this.eFn(e)
+
+                            })
+
+                        }
+
+                    }else if(item.nodeType==3){
+                        //text
+                        let reg = /\{\{(.*?)\}\}/g
+                        let text = item.textContent
+                        item.textContent = text.replace(reg,(match,vmKey)=>{
+                            vmKey = vmKey.trim()
+                  
+                            if(this.hasOwnProperty(vmKey)){
+                                 //生成事件对象
+                                 let watcher = new Watch(this,vmKey,item,'textContent')
+                                //将事件对象添加到 watchEvent、
+                                if(this.$watchEvent[vmKey]){
+                                    this.$watchEvent[vmKey].push(watcher)
+                                }else{
+                                    this.$watchEvent[vmKey] = []
+                                    this.$watchEvent[vmKey].push(watcher)
+                                }
+                             
+                            }
+
+                        
+                        })
+
+                    }
+                    // item.removeAttriute('v-html')
+                    if(item.childNodes.length>0){
+                        this.compile(item)
+                    }
+                   
+                })
+            }
+            proxyData(){
+                for(let key in this.$options.data){
+                    Object.defineProperty(this,key,{
+                        enumerable:true,
+                        configurable:false,
+                        get(){
+                            return this.$options.data[key]
+                        },
+                        set(val){
+                            this.$options.data[key] = val
+                        }
+                    })
+                }
+            }
+            //获取设置data属性值的操作
+            observe(){
+                for(let key in this.$options.data){
+                    var value = this.$options.data[key]
+                    var that  = this
+                    Object.defineProperty(this.$options.data,key,{
+                        enumerable:true,
+                        configurable:false,
+                        get(){
+                            // console.log('获取属性');
+                            return value
+
+                        },
+                        set(val){
+                            // console.log('设置属性');
+                            value = val
+                            //触发事件
+                              //循环调用事件对象，使绑定值更新
+                            if(that.$watchEvent[key]){
+                               that.$watchEvent[key].forEach((item,i)=>{
+                                   item.update()
+                               })
+                            }
+                            
+
+                        }
+                    })
+                }
+            }
+            
+
+        }
+        //生成事件对象
+        class Watch{
+            //vm:app对象
+            //key data属性键
+            //node html节点
+            //attr 节点属性
+            constructor(vm,key,node,attr){
+                this.vm = vm
+                this.key = key
+                this.node = node 
+                this.attr = attr
+            }
+            //更新属性
+            update(){
+                console.log(this.attr);
+                
+                console.log(this.node);
+                console.log(this.vm[this.key]);
+                this.node[this.attr] = this.vm[this.key]
+            }
+        }
+        var vm = new Vue({
+            el:'#app',
+            data:{
+                name:'zh'
+            },
+            methods:{
+                change(){
+                    this.name='点了一下'
+                }
+            }
+        })
+        vm.name='hello word'
+        console.log(vm);
+    </script>
+</body>
+</html>
